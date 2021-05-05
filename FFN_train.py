@@ -4,11 +4,12 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 # f(x) = a(b(c(d(x))))
 # function = [d, c, b, a]
-from tensorflow.keras.layers import InputLayer
+from tensorflow.keras.layers import Flatten
+from tensorflow.keras.layers import Input
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras import optimizers
-from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical, plot_model
 
 
 config = tf.compat.v1.ConfigProto()
@@ -44,25 +45,20 @@ n_class = 10
 lr = 0.0025
 drop_prob = 0.5
 
-
 # Dummy data to check the size of the layers during the building of the network
-X = np.random.randint(0, 10, size=(batch_size, seq_len, n_feat)).astype('float32')
+X = np.random.randint(0, 10, size=(batch_size, seq_len, n_feat))
+# print("x: {}".format(X))
 
 # Define the layers of the network
-input_shape = (batch_size, seq_len, n_feat)
+input_shape = (seq_len, n_feat)
 model = Sequential()
-# Input layer, holds the shape of the data
-model.add(InputLayer(input_shape=input_shape))
-# Dense layer with ReLu activation function
+# Input layer, holds the shape of the data, flattening the input
+model.add(Flatten(input_shape=input_shape))
+# # Dense layer with ReLu activation function
 model.add(Dense(units=n_hid, activation='relu'))
 model.add(Dropout(drop_prob))
 # Output layer with a Softmax activation function
 model.add(Dense(units=n_class, activation='softmax'))
-
-# testo
-intermediate_output = model.predict(X)
-print("intermedio")
-print(intermediate_output)
 
 # Calculate the prediction and network loss for the training set and update the network weights:
 
@@ -79,6 +75,7 @@ model.compile(loss='categorical_crossentropy',
               metrics=['accuracy'])
 
 print(model.summary())
+plot_model(model, "model.png", show_shapes=True)
 
 # Calculate the prediction and network loss for the validation set:
 # todo
