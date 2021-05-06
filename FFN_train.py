@@ -5,11 +5,11 @@ from tensorflow.keras.models import Sequential
 # f(x) = a(b(c(d(x))))
 # function = [d, c, b, a]
 from tensorflow.keras.layers import Flatten
-from tensorflow.keras.layers import Input
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras import optimizers
 from tensorflow.keras.utils import to_categorical, plot_model
+import matplotlib.pyplot as plt
 
 
 config = tf.compat.v1.ConfigProto()
@@ -77,18 +77,41 @@ model.compile(loss='categorical_crossentropy',
 print(model.summary())
 plot_model(model, "model.png", show_shapes=True)
 
-# Calculate the prediction and network loss for the validation set:
-# todo
-
-y_train_oh = to_categorical(y_train, n_class)
-y_val_oh = to_categorical(y_val, n_class)
+# Train
+y_train = to_categorical(y_train, n_class)
+y_val = to_categorical(y_val, n_class)
 
 # Number of epochs
 num_epochs = 80
 
-model.fit(X_train, y_train_oh, epochs=80, batch_size=batch_size)
+# Calculate also the prediction and network loss for the validation set:
+history = model.fit(X_train, y_train, epochs=80, batch_size=batch_size, validation_data=(X_val, y_val), shuffle=True)
 
-# loss_and_acc = model.evaluate(X_test, y_test_oh, batch_size=128,verbose=0)
+# Model loss and accuracy
+# Plots of loss and accuracy for training and validation set at each epoch
+x_axis = range(num_epochs)
+plt.figure(figsize=(8, 6))
+# loss_training:
+plt.plot(x_axis, history.history['loss'])
+# loss_validation
+plt.plot(x_axis, history.history['val_loss'])
+plt.xlabel('Epoch')
+plt.ylabel('Error')
+plt.legend(('Training', 'Validation'))
+plt.show()
 
+plt.figure(figsize=(8, 6))
+# accuracy training
+plt.plot(x_axis, history.history['accuracy'])
+# accuracy validation
+plt.plot(x_axis, history.history['val_accuracy'])
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend(('Training', 'Validation'))
+plt.show()
 
+# Confusion matrix
+# The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
+# Code based on http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
 
+# todo
