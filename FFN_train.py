@@ -4,11 +4,14 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 # f(x) = a(b(c(d(x))))
 # function = [d, c, b, a]
-from tensorflow.keras.layers import InputLayer
+from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras import optimizers
-from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical, plot_model
+import matplotlib.pyplot as plt
+import itertools
+from sklearn.metrics import classification_report, confusion_matrix
 
 
 config = tf.compat.v1.ConfigProto()
@@ -44,25 +47,20 @@ n_class = 10
 lr = 0.0025
 drop_prob = 0.5
 
-
 # Dummy data to check the size of the layers during the building of the network
-X = np.random.randint(0, 10, size=(batch_size, seq_len, n_feat)).astype('float32')
+X = np.random.randint(0, 10, size=(batch_size, seq_len, n_feat))
+# print("x: {}".format(X))
 
 # Define the layers of the network
-input_shape = (batch_size, seq_len, n_feat)
+input_shape = (seq_len, n_feat)
 model = Sequential()
-# Input layer, holds the shape of the data
-model.add(InputLayer(input_shape=input_shape))
-# Dense layer with ReLu activation function
+# Input layer, holds the shape of the data, flattening the input
+model.add(Flatten(input_shape=input_shape))
+# # Dense layer with ReLu activation function
 model.add(Dense(units=n_hid, activation='relu'))
 model.add(Dropout(drop_prob))
 # Output layer with a Softmax activation function
 model.add(Dense(units=n_class, activation='softmax'))
-
-# testo
-intermediate_output = model.predict(X)
-print("intermedio")
-print(intermediate_output)
 
 # Calculate the prediction and network loss for the training set and update the network weights:
 
@@ -79,19 +77,69 @@ model.compile(loss='categorical_crossentropy',
               metrics=['accuracy'])
 
 print(model.summary())
+plot_model(model, "model.png", show_shapes=True)
 
-# Calculate the prediction and network loss for the validation set:
-# todo
-
-y_train_oh = to_categorical(y_train, n_class)
-y_val_oh = to_categorical(y_val, n_class)
+# Train
+y_train = to_categorical(y_train, n_class)
+y_val = to_categorical(y_val, n_class)
 
 # Number of epochs
 num_epochs = 80
 
-model.fit(X_train, y_train_oh, epochs=80, batch_size=batch_size)
+# Calculate also the prediction and network loss for the validation set:
+history = model.fit(X_train, y_train, epochs=80, batch_size=batch_size, validation_data=(X_val, y_val), shuffle=True)
 
-# loss_and_acc = model.evaluate(X_test, y_test_oh, batch_size=128,verbose=0)
+# Model loss and accuracy
+# Plots of loss and accuracy for training and validation set at each epoch
+x_axis = range(num_epochs)
+plt.figure(figsize=(8, 6))
+# loss_training:
+plt.plot(x_axis, history.history['loss'])
+# loss_validation
+plt.plot(x_axis, history.history['val_loss'])
+plt.xlabel('Epoch')
+plt.ylabel('Error')
+plt.legend(('Training', 'Validation'))
+plt.show()
 
+plt.figure(figsize=(8, 6))
+# accuracy training
+plt.plot(x_axis, history.history['accuracy'])
+# accuracy validation
+plt.plot(x_axis, history.history['val_accuracy'])
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend(('Training', 'Validation'))
+plt.show()
 
+# Confusion matrix
+# The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
+# Code based on http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
 
+Y_pred = model.predict(X_val)
+y_pred = np.argmax(Y_pred, axis=1)
+
+confusion_mat = confusion_matrix(validation['y_val'], y_pred)
+
+plt.figure(figsize=(8, 8))
+colormap = plt.cm.Blues
+plt.imshow(confusion_mat, interpolation='nearest', cmap=colormap)
+plt.title('Confusion matrix validation set')
+plt.colorbar()
+tick_marks = np.arange(n_class)
+classes = ['Nucleus', 'Cytoplasm', 'Extracellular', 'Mitochondrion', 'Cell membrane', 'ER', 'Chloroplast',
+                'Golgi apparatus', 'Lysosome', 'Vacuole']
+
+plt.xticks(tick_marks, classes, rotation=60)
+plt.yticks(tick_marks, classes)
+
+thresh = confusion_mat.max() / 2.
+for i, j in itertools.product(range(confusion_mat.shape[0]), range(confusion_mat.shape[1])):
+    plt.text(j, i, confusion_mat[i, j],
+             horizontalalignment="center",
+             color="white" if confusion_mat[i, j] > thresh else "black")
+
+plt.tight_layout()
+plt.ylabel('True location')
+plt.xlabel('Predicted location')
+plt.show()
