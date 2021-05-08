@@ -1,9 +1,6 @@
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-# f(x) = a(b(c(d(x))))
-# function = [d, c, b, a]
 from tensorflow.keras.layers import Flatten
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Dropout
@@ -47,16 +44,12 @@ n_class = 10
 lr = 0.0025
 drop_prob = 0.5
 
-# Dummy data to check the size of the layers during the building of the network
-X = np.random.randint(0, 10, size=(batch_size, seq_len, n_feat))
-# print("x: {}".format(X))
-
 # Define the layers of the network
 input_shape = (seq_len, n_feat)
 model = Sequential()
 # Input layer, holds the shape of the data, flattening the input
 model.add(Flatten(input_shape=input_shape))
-# # Dense layer with ReLu activation function
+# Dense layer with ReLu activation function
 model.add(Dense(units=n_hid, activation='relu'))
 model.add(Dropout(drop_prob))
 # Output layer with a Softmax activation function
@@ -64,18 +57,10 @@ model.add(Dense(units=n_class, activation='softmax'))
 
 # Calculate the prediction and network loss for the training set and update the network weights:
 
-# todo c'è qualcosa che manca forse qui, ovvero:
-# Training loss
-# loss = T.mean(t_loss)
-# Parameters
-# params = lasagne.layers.get_all_params([l_out], trainable=True)
-# Get the network gradients and perform total norm constraint normalization
-# all_grads = lasagne.updates.total_norm_constraint(T.grad(loss, params),3)
-# total_norm_constraint() constrain the total norm of a list of tensors e questo non viene fatto.
 model.compile(loss='categorical_crossentropy',
               optimizer=optimizers.Adam(learning_rate=lr),
               metrics=['accuracy'])
-
+# todo weights normalization?
 print(model.summary())
 plot_model(model, "model.png", show_shapes=True)
 
@@ -133,7 +118,7 @@ classes = ['Nucleus', 'Cytoplasm', 'Extracellular', 'Mitochondrion', 'Cell membr
 plt.xticks(tick_marks, classes, rotation=60)
 plt.yticks(tick_marks, classes)
 
-thresh = confusion_mat.max() / 2.
+thresh = confusion_mat.max() / 2.0
 for i, j in itertools.product(range(confusion_mat.shape[0]), range(confusion_mat.shape[1])):
     plt.text(j, i, confusion_mat[i, j],
              horizontalalignment="center",
