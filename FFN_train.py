@@ -10,6 +10,8 @@ from tensorflow.keras.layers import Dropout
 from tensorflow.keras import optimizers
 from tensorflow.keras.utils import to_categorical, plot_model
 import matplotlib.pyplot as plt
+import itertools
+from sklearn.metrics import classification_report, confusion_matrix
 
 
 config = tf.compat.v1.ConfigProto()
@@ -114,4 +116,30 @@ plt.show()
 # The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
 # Code based on http://scikit-learn.org/stable/auto_examples/model_selection/plot_confusion_matrix.html
 
-# todo
+Y_pred = model.predict(X_val)
+y_pred = np.argmax(Y_pred, axis=1)
+
+confusion_mat = confusion_matrix(validation['y_val'], y_pred)
+
+plt.figure(figsize=(8, 8))
+colormap = plt.cm.Blues
+plt.imshow(confusion_mat, interpolation='nearest', cmap=colormap)
+plt.title('Confusion matrix validation set')
+plt.colorbar()
+tick_marks = np.arange(n_class)
+classes = ['Nucleus', 'Cytoplasm', 'Extracellular', 'Mitochondrion', 'Cell membrane', 'ER', 'Chloroplast',
+                'Golgi apparatus', 'Lysosome', 'Vacuole']
+
+plt.xticks(tick_marks, classes, rotation=60)
+plt.yticks(tick_marks, classes)
+
+thresh = confusion_mat.max() / 2.
+for i, j in itertools.product(range(confusion_mat.shape[0]), range(confusion_mat.shape[1])):
+    plt.text(j, i, confusion_mat[i, j],
+             horizontalalignment="center",
+             color="white" if confusion_mat[i, j] > thresh else "black")
+
+plt.tight_layout()
+plt.ylabel('True location')
+plt.xlabel('Predicted location')
+plt.show()
