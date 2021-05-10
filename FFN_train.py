@@ -9,7 +9,7 @@ from tensorflow.keras.utils import to_categorical, plot_model
 import matplotlib.pyplot as plt
 import itertools
 from sklearn.metrics import classification_report, confusion_matrix
-
+from keras.callbacks import ModelCheckpoint
 
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -71,8 +71,18 @@ y_val = to_categorical(y_val, n_class)
 # Number of epochs
 num_epochs = 80
 
+checkpoint = ModelCheckpoint(filepath='weights/FFN_weights.hdf5',
+                            monitor='val_loss',
+                            verbose=1,
+                            save_best_only=True,
+                            mode='min')
 # Calculate also the prediction and network loss for the validation set:
-history = model.fit(X_train, y_train, epochs=80, batch_size=batch_size, validation_data=(X_val, y_val), shuffle=True)
+history = model.fit(X_train, y_train, epochs=80, batch_size=batch_size, validation_data=(X_val, y_val), shuffle=True, callbacks=[checkpoint])
+
+print("Minimum validation loss: {:.6f}".format(min(history.history['val_loss'])))
+acc_index = np.argmin(history.history['val_loss'])
+print("With accuracy: {:.6f}".format(history.history['val_accuracy'][acc_index]))
+
 
 # Model loss and accuracy
 # Plots of loss and accuracy for training and validation set at each epoch
