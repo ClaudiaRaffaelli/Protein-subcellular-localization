@@ -76,7 +76,6 @@ class CustomModels:
 
 		# Calculate the prediction and network loss for the training set and update the network weights:
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
-		# todo weights normalization?
 
 	def create_CNN(self):
 		"""
@@ -108,6 +107,35 @@ class CustomModels:
 		self.model = keras.Model(inputs, l_out)
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
 
+	def create_LSTM(self):
+		"""
+		Building the network by defining its architecture: input layer, a bidirectional LSTM, a dense layer and an
+															output layer
+		"""
+		# Build model defining the layers
+		# Define input
+		l_input = keras.Input(shape=(self.seq_len, self.n_feat))
+
+		# mask to ignore the padded positions
+		l_mask = layers.Masking(mask_value=0.0)(l_input)
+
+		# Bidirectional LSTM layer, taking only the last hidden state (only_return_final)
+		l_fwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False)(l_mask)
+		l_bwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False, go_backwards=True)(l_mask)
+
+		# Concatenate both layers
+		l_conc_lstm = tf.keras.layers.Concatenate(axis=1)([l_fwd, l_bwd])
+
+		# Dense layer with ReLu activation function
+		l_dense = layers.Dense(self.n_hid * 2, activation="relu")(l_conc_lstm)
+
+		# Output layer with a Softmax activation function. Note that we include a dropout layer
+		l_dropout = layers.Dropout(self.drop_prob)(l_dense)
+		l_out = layers.Dense(self.n_class, activation="softmax")(l_dropout)
+
+		self.model = keras.Model(l_input, l_out)
+		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr),
+						   metrics=['accuracy'])
 
 	def create_CNN_LSTM(self):
 		"""
@@ -193,7 +221,7 @@ class CustomModels:
 		state_c = layers.Concatenate()([forward_c, backward_c])
 
 		# Set up the attention layer
-		context_vector, attention_weights = Attention(self.n_hid * 2)(l_lstm, state_h)
+		context_vector, self.attention_weights = Attention(self.n_hid * 2)(l_lstm, state_h)
 
 		l_drop = layers.Dropout(self.drop_prob)(context_vector)
 
@@ -201,7 +229,36 @@ class CustomModels:
 
 		self.model = keras.Model(inputs, l_out)
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
-		# todo weights normalization?
+
+	def create_LSTM_Attention(self):
+		"""
+		Building the network by defining its architecture: an input layer, a bidirectional LSTM, an attention layer,
+														  a dense layer and an output layer.
+		"""
+
+		# Build model
+		inputs = keras.Input(shape=(self.seq_len, self.n_feat))
+
+		# todo mask here?
+		# mask to ignore the padded positions
+		l_mask = layers.Masking(mask_value=0.0, input_shape=(None, self.n_feat))(inputs)
+
+		# encoders LSTM
+		l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
+			(layers.LSTM(self.n_hid, dropout=0.2, return_sequences=True, return_state=True, activation="tanh"))(l_mask)
+
+		state_h = layers.Concatenate()([forward_h, backward_h])
+		state_c = layers.Concatenate()([forward_c, backward_c])
+
+		# Set up the attention layer
+		context_vector, self.attention_weights = Attention(self.n_hid * 2)(l_lstm, state_h)
+
+		l_drop = layers.Dropout(self.drop_prob)(context_vector)
+
+		l_out = layers.Dense(self.n_class, activation="softmax")(l_drop)
+
+		self.model = keras.Model(inputs, l_out)
+		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
 
 	def confusion_matrix(self, X_val, validation):
 		# The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
