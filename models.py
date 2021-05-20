@@ -43,11 +43,11 @@ class CustomModels:
 		Hyperparameters of the network:
 		:param seq_len: length of sequence
 		:param n_feat: number of features encoded
-		:param n_hid: number of hidden neurons
+		:param n_hid: number of hidden neurons. In can be an integer, or an hp.Int, that is a range used during optimization.
 		:param n_class: number of classes to output
-		:param lr: learning rate
-		:param drop_prob: hidden neurons dropout probability
-		:param n_filt: (optional) filters number
+		:param lr: learning rate. In can be a float, or an hp.Float, that is a range used during optimization.
+		:param drop_prob: hidden neurons dropout probability. In can be a float, or an hp.Float, that is a range used during optimization.
+		:param n_filt: (optional) filters number. In can be an int, or an hp.Int, that is a range used during optimization.
 		"""
 		self.seq_len = seq_len
 		self.n_feat = n_feat
@@ -58,9 +58,11 @@ class CustomModels:
 		self.n_filt = n_filt
 		self.model = None
 
-	def create_FFN(self):
+	def create_FFN(self, hp=None):
 		"""
 		Building the network by defining its architecture: input layer, dense layer, output layer
+		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+					search space and the current values of each hyperparameter.
 		"""
 
 		# Define the layers of the network
@@ -76,11 +78,14 @@ class CustomModels:
 
 		# Calculate the prediction and network loss for the training set and update the network weights:
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
+		return self.model
 
-	def create_CNN(self):
+	def create_CNN(self, hp=None):
 		"""
 		Building the network by defining its architecture: input layer, two convolutional layers with max pooling,
 															a dense layer and an output layer.
+		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+				search space and the current values of each hyperparameter.
 		"""
 
 		# Build model
@@ -106,11 +111,14 @@ class CustomModels:
 
 		self.model = keras.Model(inputs, l_out)
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
+		return self.model
 
-	def create_LSTM(self):
+	def create_LSTM(self, hp=None):
 		"""
 		Building the network by defining its architecture: input layer, a bidirectional LSTM, a dense layer and an
 															output layer
+		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+				search space and the current values of each hyperparameter.
 		"""
 		# Build model defining the layers
 		# Define input
@@ -136,11 +144,14 @@ class CustomModels:
 		self.model = keras.Model(l_input, l_out)
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr),
 						   metrics=['accuracy'])
+		return self.model
 
-	def create_CNN_LSTM(self):
+	def create_CNN_LSTM(self, hp=None):
 		"""
 		Building the network by defining its architecture: input layer, two convolutional layers, a bidirectional LSTM,
 															a dense layer and an output layer
+		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+				search space and the current values of each hyperparameter.
 		"""
 
 		# Build model defining the layers
@@ -186,11 +197,14 @@ class CustomModels:
 
 		self.model = keras.Model(l_input, l_out)
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
+		return self.model
 
-	def create_CNN_LSTM_Attention(self):
+	def create_CNN_LSTM_Attention(self, hp=None):
 		"""
 		Building the network by defining its architecture: an input layer, two convolutional layers, a bidirectional
 														LSTM, an attention layer, a dense layer and an output layer.
+		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+				search space and the current values of each hyperparameter.
 		"""
 
 		# Build model
@@ -229,11 +243,14 @@ class CustomModels:
 
 		self.model = keras.Model(inputs, l_out)
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
+		return self.model
 
-	def create_LSTM_Attention(self):
+	def create_LSTM_Attention(self, hp=None):
 		"""
 		Building the network by defining its architecture: an input layer, a bidirectional LSTM, an attention layer,
 														  a dense layer and an output layer.
+		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+				search space and the current values of each hyperparameter.
 		"""
 
 		# Build model
@@ -259,6 +276,7 @@ class CustomModels:
 
 		self.model = keras.Model(inputs, l_out)
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr), metrics=['accuracy'])
+		return self.model
 
 	def confusion_matrix(self, X_val, validation):
 		# The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
