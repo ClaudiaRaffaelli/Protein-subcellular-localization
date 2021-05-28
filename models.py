@@ -5,7 +5,7 @@ from tensorflow.keras import layers, optimizers
 from tensorflow import keras
 import matplotlib.pyplot as plt
 import itertools
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, matthews_corrcoef
 import math
 
 
@@ -384,34 +384,17 @@ class CustomModels:
 		plt.xlabel('Predicted location')
 		plt.show()
 
-	# Measures
-	def gorodkin(self):
-		k, n = self.kn(self.confusion_mat)
-		t2 = sum(np.dot(self.confusion_mat[i, :], self.confusion_mat[:, j]) for i, j in self.it(k))
-		t3 = sum(np.dot(self.confusion_mat[i, :], self.confusion_mat.T[:, j]) for i, j in self.it(k))
-		t4 = sum(np.dot(self.confusion_mat.T[i, :], self.confusion_mat[:, j]) for i, j in self.it(k))
-		return (n * np.trace(self.confusion_mat) - t2) / (math.sqrt(n ** 2 - t3) * math.sqrt(n ** 2 - t4))
+	def MCC(self, X_val, validation):
+		# The Matthews correlation coefficient is a measure of the quality of binary and multiclass (and in this case
+		# it is called Gorodkin measure) classifications.
+		# It takes into account true and false positives and negatives. Is as a balanced measure which can be used
+		# even if the classes are of very different sizes.
+		# The MCC is in essence a correlation coefficient value between -1 and +1.
+		# A coefficient of +1 represents a perfect prediction, 0 an average random prediction and -1 an inverse
+		# prediction.
 
-	def kn(self, z):
-		return (z.shape[0], np.sum(z))
+		Y_pred = self.model.predict(X_val)
+		y_pred = np.argmax(Y_pred, axis=1)
 
-	def it(self, k):
-		return itertools.product(range(k), range(k))
-
-	def IC(self):
-		N = np.sum(self.confusion_mat)
-		obs = np.sum(self.confusion_mat, axis=1)
-		pred = np.sum(self.confusion_mat, axis=0)
-		H_obs = np.sum(-self.xlogx(obs / N))
-		H_pred = np.sum(-self.xlogx(pred / N))
-		H_count = np.sum(-self.xlogx(self.confusion_mat / N))
-		Itotal = H_obs + H_pred - H_count
-		return Itotal / H_obs
-
-	def xlogx(self, x):
-		y = np.copy(x)
-		y[x > 0] = y[x > 0] * np.log(y[x > 0]) / math.log(2)
-		y[x <= 0] = 0
-		return y
-
+		return matthews_corrcoef(validation['y_val'], y_pred)
 
