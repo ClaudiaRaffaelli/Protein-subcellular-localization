@@ -327,7 +327,6 @@ class CustomModels:
 		l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
 			(layers.LSTM(self.n_hid, dropout=self.drop_hid, return_sequences=True, return_state=True, activation="tanh"))\
 			(l_reshu)
-			# (l_reshu, initial_state=[tf.keras.initializers.Orthogonal(), tf.keras.initializers.Orthogonal()])
 		state_h = layers.Concatenate()([forward_h, backward_h])
 		state_c = layers.Concatenate()([forward_c, backward_c])
 
@@ -348,10 +347,9 @@ class CustomModels:
 		# with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
 		self.model.compile(loss='categorical_crossentropy', optimizer=optimizers.Adam(learning_rate=self.lr, clipvalue=2, clipnorm=3), metrics=['accuracy'])
 
-		for i, l in enumerate(self.model.layers):
-			print(f'layer {i}: {l}')
-			print(f'has input mask: {l.input_mask}')
-			print(f'has output mask: {l.output_mask}')
+		# setting initial state tensors to be passed to the first call of the cell (cell init and hid init in
+		# bidirectional LSTM)
+		self.model.layers[12].initial_states = [tf.keras.initializers.Orthogonal(), tf.keras.initializers.Orthogonal()]
 
 		return self.model
 
