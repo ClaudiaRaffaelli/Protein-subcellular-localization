@@ -535,16 +535,16 @@ class CustomModels:
         # concatenate all convolutional layers
         l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b, l_conv_c, l_conv_d, l_conv_e, l_conv_f])
 
-        l_conv_final = layers.Conv1D(
-            64, f_size_b, strides=1, padding="same", activation="relu", data_format='channels_first')(l_conc)
+        l_reshu = layers.Permute((2, 1))(l_conc)
 
-        l_reshu = layers.Permute((2, 1))(l_conv_final)
+        l_conv_final = layers.Conv1D(
+            filters=128, kernel_size=f_size_b, strides=1, padding="same", activation="relu", data_format='channels_first')(l_reshu)
 
         # encoders LSTM
         l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
             (layers.LSTM(self.n_hid, dropout=self.drop_hid, return_sequences=True, return_state=True,
                          activation="tanh")) \
-            (l_reshu)
+            (l_conv_final)
         state_h = layers.Concatenate()([forward_h, backward_h])
         state_c = layers.Concatenate()([forward_c, backward_c])
 
