@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import glob
+from random import sample
 
 sequence_len = int(input("Choose between length 1000 or 400: "))
 while (sequence_len != 400) and (sequence_len != 1000):
@@ -53,7 +54,13 @@ out_test = "data/PSSM/results/" + str(sequence_len) + "_test"
 
 # needed to create k-fold validation on train_val with k=4
 part = 1
-for pssm_file in glob.glob("data/PSSM/txt/*.txt"):
+# in this case train and val are saved separated and are considered less sequences
+if sequence_len == 400:
+    pssm_files = sample(glob.glob("data/PSSM/txt/*.txt"), 3800)
+else:
+    pssm_files = glob.glob("data/PSSM/txt/*.txt")
+
+for pssm_file in pssm_files:
 
     # the encoded amino acid sequence will be of size sequence_len (either 400 or 1000 in our case)
     encoded_sequence = []
