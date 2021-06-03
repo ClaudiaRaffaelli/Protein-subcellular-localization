@@ -69,9 +69,7 @@ for pssm_file in pssm_files:
     # skipping the class of the dataset Cytoplasm-Nucleus since it is not relevant
     if name.split("-", 2)[2].startswith("Cytoplasm-Nucleus"):
         continue
-    print(name)
-    print(name.split("-", 3)[2])
-    print(name.split("-", 2))
+
     loc = name.split("-")
     if loc[2] in labels_dic_location.keys():
         location = labels_dic_location[loc[2]]
@@ -79,11 +77,7 @@ for pssm_file in pssm_files:
     else:
         location = labels_dic_location[loc[2]+"-"+loc[3]]
         membrane = labels_dic_membrane[loc[4][0]]  # M for membrane, U for unknown, S for soluble
-
-    # location = labels_dic_location[name.split("-", 2)[2]]
-
-    # membrane = labels_dic_membrane[name.split("-", 3)[3][0]]  # M for membrane, U for unknown, S for soluble
-    print("location: {}, membrane: {}".format(location, membrane))
+    # print("location: {}, membrane: {}".format(location, membrane))
 
     # parsing the whole txt file of PSSM
     with open(pssm_file) as f:
