@@ -14,7 +14,7 @@ labels_dic_location = {
     'Cytoplasm': 1,
     'Endoplasmic-reticulum': 2,
     'Golgi-apparatus': 3,
-    'Lysosome:Vacuole': 4,
+    'Lysosome_Vacuole': 4,
     'Mitochondrion': 5,
     'Nucleus': 6,
     'Peroxisome': 7,
@@ -56,9 +56,9 @@ out_test = "data/PSSM/results/" + str(sequence_len) + "_test"
 part = 1
 # in this case train and val are saved separated and are considered less sequences
 if sequence_len == 400:
-    pssm_files = sample(glob.glob("data/PSSM/txt/*.txt"), 3800)
+    pssm_files = sample(glob.glob("data/PSSM/txt/*"), 3800)
 else:
-    pssm_files = glob.glob("data/PSSM/txt/*.txt")
+    pssm_files = glob.glob("data/PSSM/txt/*")
 
 for pssm_file in pssm_files:
 
@@ -67,16 +67,22 @@ for pssm_file in pssm_files:
     name = pssm_file.split("/", 4)[3]
 
     # skipping the class of the dataset Cytoplasm-Nucleus since it is not relevant
-    if name.split("-", 2)[2].startswith("Cytoplasm-Nucleus"):
+    if name.split("-", 2)[2].startswith("Cytoplasm-Nucleus") or name.split("-", 3)[3].startswith("Cytoplasm-Nucleus"):
         continue
 
     loc = name.split("-")
     if loc[2] in labels_dic_location.keys():
         location = labels_dic_location[loc[2]]
         membrane = labels_dic_membrane[loc[3][0]]  # M for membrane, U for unknown, S for soluble
-    else:
+    elif str(loc[2]+"-"+loc[3]) in labels_dic_location.keys():
         location = labels_dic_location[loc[2]+"-"+loc[3]]
         membrane = labels_dic_membrane[loc[4][0]]  # M for membrane, U for unknown, S for soluble
+    elif str(loc[3]) in labels_dic_location.keys():
+        location = labels_dic_location[loc[3]]
+        membrane = labels_dic_membrane[loc[4][0]]  # M for membrane, U for unknown, S for soluble
+    else:
+        location = labels_dic_location[loc[3]+"-"+loc[4]]
+        membrane = labels_dic_membrane[loc[5][0]]  # M for membrane, U for unknown, S for soluble
     # print("location: {}, membrane: {}".format(location, membrane))
 
     # parsing the whole txt file of PSSM
@@ -117,7 +123,7 @@ for pssm_file in pssm_files:
             encoded_sequence.append(encoded_amino_acid)
 
         # this means that this record is for the test set.
-        if pssm_file.endswith("test.pssm.txt"):
+        if pssm_file.endswith("test.pssm"):
             y_test_location.append(location)
             y_test_membrane.append(membrane)
             X_test.append(encoded_sequence)
