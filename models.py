@@ -19,6 +19,7 @@ class Attention(tf.keras.layers.Layer):
         # W2 weight for all the encoder hidden states
         self.W2 = tf.keras.layers.Dense(units)
         self.V = tf.keras.layers.Dense(1)
+        self.hidden_states = []
 
     def call(self, inputs, hidden):
         # 'hidden' (h_t) is expanded over the time axis to prepare it for the addition
@@ -26,6 +27,7 @@ class Attention(tf.keras.layers.Layer):
         # (in seq2seq in would have been the current state of the decoder step)
         # 'features' (h_s) are all the hidden states of the encoder.
         hidden_with_time_axis = tf.expand_dims(hidden, 1)
+        self.hidden_states.append(hidden_with_time_axis)
 
         # Bahdanau additive style to compute the score:
         # score = v_a * tanh(W_1*h_t + W_2*h_s)
@@ -40,18 +42,18 @@ class Attention(tf.keras.layers.Layer):
 class CustomModels:
 
     def __init__(self, seq_len, n_feat, n_hid, n_class, lr, drop_prob, n_filt=None, drop_hid=None, random_search=False,
-                 n_membrane_class=None, batch_size=None):
+                 n_membrane_class=3, batch_size=None):
         """
-		Hyperparameters of the network:
-		:param seq_len: length of sequence
-		:param n_feat: number of features encoded
-		:param n_hid: number of hidden neurons. In can be an integer, or an hp.Int, that is a range used during optimization.
-		:param n_class: number of classes to output
-		:param lr: learning rate. In can be a float, or an hp.Float, that is a range used during optimization.
-		:param drop_prob: hidden neurons dropout probability. In can be a float, or an hp.Float, that is a range used during optimization.
-		:param n_filt: (optional) filters number. In can be an int, or an hp.Int, that is a range used during optimization.
-		:param drop_hid: (optional) dropout of hidden neurons
-		"""
+        Hyperparameters of the network:
+        :param seq_len: length of sequence
+        :param n_feat: number of features encoded
+        :param n_hid: number of hidden neurons. In can be an integer, or an hp.Int, that is a range used during optimization.
+        :param n_class: number of classes to output
+        :param lr: learning rate. In can be a float, or an hp.Float, that is a range used during optimization.
+        :param drop_prob: hidden neurons dropout probability. In can be a float, or an hp.Float, that is a range used during optimization.
+        :param n_filt: (optional) filters number. In can be an int, or an hp.Int, that is a range used during optimization.
+        :param drop_hid: (optional) dropout of hidden neurons
+        """
         self.seq_len = seq_len
         self.n_feat = n_feat
         self.n_hid = n_hid
@@ -68,438 +70,321 @@ class CustomModels:
 
     def create_FFN(self, X_train=None, y_train=None, X_val=None, y_val=None, params=None):
         """
-		Building the network by defining its architecture: input layer, dense layer, output layer
-		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
-					search space and the current values of each hyperparameter.
-		"""
+        Building the network by defining its architecture: input layer, dense layer, output layer
+        :param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+                    search space and the current values of each hyperparameter.
+        """
+        if self.random_search:
+            self.drop_prob = params['drop_prob']
+            self.n_hid = params['n_hid']
+            self.lr = params['lr']
 
         # Define the layers of the network
         inputs = keras.Input(shape=(self.seq_len, self.n_feat))
+        x = layers.Flatten()(inputs)
+        x = layers.Dense(units=self.n_hid, activation='relu')(x)
+        x = layers.Dropout(self.drop_prob)(x)
+
+        l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(x)
+        l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(x)
+
+        self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
+
+        # Calculate the prediction and network loss for the training set and update the network weights:
+        self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
+                           optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
+        # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
+
         if not self.random_search:
-            x = layers.Flatten()(inputs)
-            x = layers.Dense(units=self.n_hid, activation='relu')(x)
-            x = layers.Dropout(self.drop_prob)(x)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(x)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(x)
-
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-            # Calculate the prediction and network loss for the training set and update the network weights:
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
             return self.model
         else:
-            x = layers.Flatten()(inputs)
-            x = layers.Dense(units=params['n_hid'], activation='relu')(x)
-            x = layers.Dropout(params['drop_prob'])(x)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(x)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(x)
-
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-            # Calculate the prediction and network loss for the training set and update the network weights:
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=params['lr'], clipnorm=3), metrics=['accuracy'])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
             history = self.model.fit(X_train, [y_train[0], y_train[1]], epochs=120, batch_size=params['batch_size'],
                                      validation_data=(X_val, [y_val[0], y_val[1]]), shuffle=True)
             return history, self.model
 
     def create_CNN(self, X_train=None, y_train=None, X_val=None, y_val=None, params=None):
         """
-		Building the network by defining its architecture: input layer, two convolutional layers with max pooling,
-		a dense layer and an output layer.
-		:param  X_train: (optional) train features for random search
-		        X_val: (optional) validation features for random search
-		        y_train: (optional) train labels for random search
-		        y_val: (optional) validation labels for random search
-		        params: optional hyerparameter container. A HyperParameters instance contains information about both the
-				search space and the current values of each hyperparameter.
-		"""
+        Building the network by defining its architecture: input layer, two convolutional layers with max pooling,
+        a dense layer and an output layer.
+        :param  X_train: (optional) train features for random search
+                X_val: (optional) validation features for random search
+                y_train: (optional) train labels for random search
+                y_val: (optional) validation labels for random search
+                params: optional hyerparameter container. A HyperParameters instance contains information about both the
+                search space and the current values of each hyperparameter.
+        """
+
+        if self.random_search:
+            self.drop_prob = params['drop_prob']
+            self.n_hid = params['n_hid']
+            self.lr = params['lr']
+            self.n_filt = params['n_filt']
 
         # Build model
         inputs = keras.Input(shape=(self.seq_len, self.n_feat))
         l_permute = layers.Permute((2, 1))(inputs)
+        l_conv_a = layers.Conv1D(self.n_filt, 3, strides=1, padding="same", activation="relu",
+                                 data_format='channels_first') \
+            (l_permute)
+        l_conv_b = layers.Conv1D(self.n_filt, 5, strides=1, padding="same", activation="relu",
+                                 data_format='channels_first') \
+            (l_permute)
+        l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
+
+        l_conv_final = layers.Conv1D(self.n_filt * 2, 3, strides=1, padding="same", activation="relu",
+                                     data_format='channels_first')(l_conc)
+        l_reshu = layers.Permute((2, 1))(l_conv_final)
+
+        final_max_pool = layers.MaxPooling1D(5)(l_reshu)
+        final_max_pool = layers.Flatten()(final_max_pool)
+
+        l_dense = layers.Dense(self.n_hid, activation="relu")(final_max_pool)
+        l_dense = layers.Dropout(self.drop_prob)(l_dense)
+
+        l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dense)
+        l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dense)
+        self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
+        # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
+        self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
+                           optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
+
         if not self.random_search:
-            l_conv_a = layers.Conv1D(self.n_filt, 3, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first') \
-                (l_permute)
-            l_conv_b = layers.Conv1D(self.n_filt, 5, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first') \
-                (l_permute)
-            l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
-
-            l_conv_final = layers.Conv1D(self.n_filt * 2, 3, strides=1, padding="same", activation="relu",
-                                         data_format='channels_first')(l_conc)
-            l_reshu = layers.Permute((2, 1))(l_conv_final)
-
-            final_max_pool = layers.MaxPooling1D(5)(l_reshu)
-            final_max_pool = layers.Flatten()(final_max_pool)
-
-            l_dense = layers.Dense(self.n_hid, activation="relu")(final_max_pool)
-            l_dense = layers.Dropout(self.drop_prob)(l_dense)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dense)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dense)
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
-
             return self.model
         else:
-            l_conv_a = layers.Conv1D(params['n_filt'], 3, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first') \
-                (l_permute)
-            l_conv_b = layers.Conv1D(params['n_filt'], 5, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first') \
-                (l_permute)
-            l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
-
-            l_conv_final = layers.Conv1D(params['n_filt'] * 2, 3, strides=1, padding="same", activation="relu",
-                                         data_format='channels_first')(l_conc)
-            l_reshu = layers.Permute((2, 1))(l_conv_final)
-
-            final_max_pool = layers.MaxPooling1D(5)(l_reshu)
-            final_max_pool = layers.Flatten()(final_max_pool)
-
-            l_dense = layers.Dense(params['n_hid'], activation="relu")(final_max_pool)
-            l_dense = layers.Dropout(params['drop_prob'])(l_dense)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dense)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dense)
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=params['lr'], clipnorm=3), metrics=['accuracy'])
-
             history = self.model.fit(X_train, [y_train[0], y_train[1]], epochs=120, batch_size=params['batch_size'],
                                      validation_data=(X_val, [y_val[0], y_val[1]]), shuffle=True)
             return history, self.model
 
     def create_LSTM(self, X_train=None, y_train=None, X_val=None, y_val=None, params=None):
         """
-		Building the network by defining its architecture: input layer, a bidirectional LSTM, a dense layer and an
-		output layer
-		:param  X_train: (optional) train features for random search
-		        X_val: (optional) validation features for random search
-		        y_train: (optional) train labels for random search
-		        y_val: (optional) validation labels for random search
-		        params: optional hyerparameter container. A HyperParameters instance contains information about both the
-				search space and the current values of each hyperparameter.
-		"""
+        Building the network by defining its architecture: input layer, a bidirectional LSTM, a dense layer and an
+        output layer
+        :param  X_train: (optional) train features for random search
+                X_val: (optional) validation features for random search
+                y_train: (optional) train labels for random search
+                y_val: (optional) validation labels for random search
+                params: optional hyerparameter container. A HyperParameters instance contains information about both the
+                search space and the current values of each hyperparameter.
+        """
+
+        if self.random_search:
+            self.drop_prob = params['drop_prob']
+            self.n_hid = params['n_hid']
+            self.lr = params['lr']
+
         # Build model defining the layers
         # Define input
         l_input = keras.Input(shape=(self.seq_len, self.n_feat))
+
+        # Bidirectional LSTM layer, taking only the last hidden state (only_return_final)
+        l_fwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False)(l_input)
+        l_bwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False, go_backwards=True)(l_input)
+
+        # Concatenate both layers
+        l_conc_lstm = tf.keras.layers.Concatenate(axis=1)([l_fwd, l_bwd])
+
+        # Dense layer with ReLu activation function
+        l_dense = layers.Dense(self.n_hid * 2, activation="relu")(l_conc_lstm)
+
+        # Output layer with a Softmax activation function. Note that we include a dropout layer
+        l_dropout = layers.Dropout(self.drop_prob)(l_dense)
+
+        l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dropout)
+        l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dropout)
+        self.model = keras.Model(l_input, [l_out_subcellular, l_out_membrane])
+        # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
+        self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
+                           optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
+
         if not self.random_search:
-            # Bidirectional LSTM layer, taking only the last hidden state (only_return_final)
-            l_fwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False)(l_input)
-            l_bwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False, go_backwards=True)(l_input)
-
-            # Concatenate both layers
-            l_conc_lstm = tf.keras.layers.Concatenate(axis=1)([l_fwd, l_bwd])
-
-            # Dense layer with ReLu activation function
-            l_dense = layers.Dense(self.n_hid * 2, activation="relu")(l_conc_lstm)
-
-            # Output layer with a Softmax activation function. Note that we include a dropout layer
-            l_dropout = layers.Dropout(self.drop_prob)(l_dense)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dropout)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dropout)
-            self.model = keras.Model(l_input, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
-
             return self.model
         else:
-            # Bidirectional LSTM layer, taking only the last hidden state (only_return_final)
-            l_fwd = layers.LSTM(units=params['n_hid'], activation="tanh", return_sequences=False)(l_input)
-            l_bwd = layers.LSTM(units=params['n_hid'], activation="tanh", return_sequences=False, go_backwards=True)(l_input)
-
-            # Concatenate both layers
-            l_conc_lstm = tf.keras.layers.Concatenate(axis=1)([l_fwd, l_bwd])
-
-            # Dense layer with ReLu activation function
-            l_dense = layers.Dense(params['n_hid'] * 2, activation="relu")(l_conc_lstm)
-
-            # Output layer with a Softmax activation function. Note that we include a dropout layer
-            l_dropout = layers.Dropout(params['drop_prob'])(l_dense)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dropout)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dropout)
-            self.model = keras.Model(l_input, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=params['lr'], clipnorm=3), metrics=['accuracy'])
-
             history = self.model.fit(X_train, [y_train[0], y_train[1]], epochs=120, batch_size=params['batch_size'],
                                      validation_data=(X_val, [y_val[0], y_val[1]]), shuffle=True)
             return history, self.model
 
     def create_CNN_LSTM(self, X_train=None, y_train=None, X_val=None, y_val=None, params=None):
         """
-		Building the network by defining its architecture: input layer, two convolutional layers, a bidirectional LSTM,
-		a dense layer and an output layer
-		:param  X_train: (optional) train features for random search
-		        X_val: (optional) validation features for random search
-		        y_train: (optional) train labels for random search
-		        y_val: (optional) validation labels for random search
-		        params: optional hyerparameter container. A HyperParameters instance contains information about both the
-				search space and the current values of each hyperparameter.
-		"""
+        Building the network by defining its architecture: input layer, two convolutional layers, a bidirectional LSTM,
+        a dense layer and an output layer
+        :param  X_train: (optional) train features for random search
+                X_val: (optional) validation features for random search
+                y_train: (optional) train labels for random search
+                y_val: (optional) validation labels for random search
+                params: optional hyerparameter container. A HyperParameters instance contains information about both the
+                search space and the current values of each hyperparameter.
+        """
+
+        if self.random_search:
+            self.drop_prob = params['drop_prob']
+            self.n_hid = params['n_hid']
+            self.lr = params['lr']
+            self.n_filt = params['n_filt']
+
         # Build model defining the layers
         # Define input
         l_input = keras.Input(shape=(self.seq_len, self.n_feat))
         l_permute = layers.Permute((2, 1))(l_input)
+        # Convolutional layers with filter size 3 and 5
+        l_conv_a = layers.Conv1D(self.n_filt, 3, strides=1, padding="same", activation="relu",
+                                 data_format='channels_first')(
+            l_permute)
+
+        l_conv_b = layers.Conv1D(self.n_filt, 5, strides=1, padding="same", activation="relu",
+                                 data_format='channels_first')(
+            l_permute)
+
+        # The output of the two convolution is concatenated
+        l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
+
+        # Building a second CNN layer
+        l_conv_final = layers.Conv1D(
+            self.n_filt * 2, 3, strides=1, padding="same", activation="relu", data_format='channels_first')(l_conc)
+
+        # Second permute layer
+        l_reshu = layers.Permute((2, 1))(l_conv_final)
+
+        # Bidirectional LSTM layer, taking only the last hidden state (only_return_final)
+        l_fwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False)(l_reshu)
+        l_bwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False, go_backwards=True)(l_reshu)
+
+        # Concatenate both layers
+        l_conc_lstm = tf.keras.layers.Concatenate(axis=1)([l_fwd, l_bwd])
+
+        # Dense layer with ReLu activation function
+        l_dense = layers.Dense(self.n_hid * 2, activation="relu")(l_conc_lstm)
+
+        # Output layer with a Softmax activation function. Note that we include a dropout layer
+        l_dropout = layers.Dropout(self.drop_prob)(l_dense)
+        l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dropout)
+        l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dropout)
+        self.model = keras.Model(l_input, [l_out_subcellular, l_out_membrane])
+        # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
+        self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
+                           optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
+
         if not self.random_search:
-            # Convolutional layers with filter size 3 and 5
-            l_conv_a = layers.Conv1D(self.n_filt, 3, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-
-            l_conv_b = layers.Conv1D(self.n_filt, 5, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-
-            # The output of the two convolution is concatenated
-            l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
-
-            # Building a second CNN layer
-            l_conv_final = layers.Conv1D(
-                self.n_filt * 2, 3, strides=1, padding="same", activation="relu", data_format='channels_first')(l_conc)
-
-            # Second permute layer
-            l_reshu = layers.Permute((2, 1))(l_conv_final)
-
-            # Bidirectional LSTM layer, taking only the last hidden state (only_return_final)
-            l_fwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False)(l_reshu)
-            l_bwd = layers.LSTM(units=self.n_hid, activation="tanh", return_sequences=False, go_backwards=True)(l_reshu)
-
-            # Concatenate both layers
-            l_conc_lstm = tf.keras.layers.Concatenate(axis=1)([l_fwd, l_bwd])
-
-            # Dense layer with ReLu activation function
-            l_dense = layers.Dense(self.n_hid * 2, activation="relu")(l_conc_lstm)
-
-            # Output layer with a Softmax activation function. Note that we include a dropout layer
-            l_dropout = layers.Dropout(self.drop_prob)(l_dense)
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dropout)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dropout)
-            self.model = keras.Model(l_input, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
 
             return self.model
         else:
-            # Convolutional layers with filter size 3 and 5
-            l_conv_a = layers.Conv1D(params['n_filt'], 3, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-
-            l_conv_b = layers.Conv1D(params['n_filt'], 5, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-
-            # The output of the two convolution is concatenated
-            l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
-
-            # Building a second CNN layer
-            l_conv_final = layers.Conv1D(
-                params['n_filt'] * 2, 3, strides=1, padding="same", activation="relu", data_format='channels_first')(l_conc)
-
-            # Second permute layer
-            l_reshu = layers.Permute((2, 1))(l_conv_final)
-
-            # Bidirectional LSTM layer, taking only the last hidden state (only_return_final)
-            l_fwd = layers.LSTM(units=params['n_hid'], activation="tanh", return_sequences=False)(l_reshu)
-            l_bwd = layers.LSTM(units=params['n_hid'], activation="tanh", return_sequences=False, go_backwards=True)(l_reshu)
-
-            # Concatenate both layers
-            l_conc_lstm = tf.keras.layers.Concatenate(axis=1)([l_fwd, l_bwd])
-
-            # Dense layer with ReLu activation function
-            l_dense = layers.Dense(params['n_hid'] * 2, activation="relu")(l_conc_lstm)
-
-            # Output layer with a Softmax activation function. Note that we include a dropout layer
-            l_dropout = layers.Dropout(params['drop_prob'])(l_dense)
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_dropout)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_dropout)
-            self.model = keras.Model(l_input, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=params['lr'], clipnorm=3), metrics=['accuracy'])
-
             history = self.model.fit(X_train, [y_train[0], y_train[1]], epochs=120, batch_size=params['batch_size'],
                                      validation_data=(X_val, [y_val[0], y_val[1]]), shuffle=True)
             return history, self.model
 
-
     def create_LSTM_Attention(self, X_train=None, y_train=None, X_val=None, y_val=None, params=None):
         """
-		Building the network by defining its architecture: an input layer, a bidirectional LSTM, an attention layer,
-		a dense layer and an output layer.
-		:param  X_train: (optional) train features for random search
-		        X_val: (optional) validation features for random search
-		        y_train: (optional) train labels for random search
-		        y_val: (optional) validation labels for random search
-		        params: optional hyerparameter container. A HyperParameters instance contains information about both the
-				search space and the current values of each hyperparameter.
-		"""
+        Building the network by defining its architecture: an input layer, a bidirectional LSTM, an attention layer,
+        a dense layer and an output layer.
+        :param  X_train: (optional) train features for random search
+                X_val: (optional) validation features for random search
+                y_train: (optional) train labels for random search
+                y_val: (optional) validation labels for random search
+                params: optional hyerparameter container. A HyperParameters instance contains information about both the
+                search space and the current values of each hyperparameter.
+        """
+
+        if self.random_search:
+            self.drop_prob = params['drop_prob']
+            self.n_hid = params['n_hid']
+            self.lr = params['lr']
 
         # Build model
         inputs = keras.Input(shape=(self.seq_len, self.n_feat))
+        # encoders LSTM
+        l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
+            (layers.LSTM(self.n_hid, dropout=self.drop_prob, return_sequences=True, return_state=True,
+                         activation="tanh"))(inputs)
+
+        state_h = layers.Concatenate()([forward_h, backward_h])
+        state_c = layers.Concatenate()([forward_c, backward_c])
+
+        # Set up the attention layer
+        context_vector, self.attention_weights = Attention(self.n_hid * 2)(inputs=l_lstm, hidden=state_h)
+
+        l_drop = layers.Dropout(self.drop_prob)(context_vector)
+
+        l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_drop)
+        l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_drop)
+        self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
+        # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
+        self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
+                           optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
+
         if not self.random_search:
-            # encoders LSTM
-            l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
-                (layers.LSTM(self.n_hid, dropout=self.drop_prob, return_sequences=True, return_state=True,
-                             activation="tanh"))(inputs)
-
-            state_h = layers.Concatenate()([forward_h, backward_h])
-            state_c = layers.Concatenate()([forward_c, backward_c])
-
-            # Set up the attention layer
-            context_vector, self.attention_weights = Attention(self.n_hid * 2)(inputs=l_lstm, hidden=state_h)
-
-            l_drop = layers.Dropout(self.drop_prob)(context_vector)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_drop)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_drop)
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
-
             return self.model
         else:
-            # encoders LSTM
-            l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
-                (layers.LSTM(params['n_hid'], dropout=params['drop_prob'], return_sequences=True, return_state=True,
-                             activation="tanh"))(inputs)
-
-            state_h = layers.Concatenate()([forward_h, backward_h])
-            state_c = layers.Concatenate()([forward_c, backward_c])
-
-            # Set up the attention layer
-            context_vector, self.attention_weights = Attention(params['n_hid'] * 2)(inputs=l_lstm, hidden=state_h)
-
-            l_drop = layers.Dropout(params['drop_prob'])(context_vector)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_drop)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_drop)
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=params['lr'], clipnorm=3), metrics=['accuracy'])
-
             history = self.model.fit(X_train, [y_train[0], y_train[1]], epochs=120, batch_size=params['batch_size'],
                                      validation_data=(X_val, [y_val[0], y_val[1]]), shuffle=True)
             return history, self.model
 
     def create_CNN_LSTM_Attention(self, X_train=None, y_train=None, X_val=None, y_val=None, params=None):
         """
-		Building the network by defining its architecture: an input layer, two convolutional layers, a bidirectional
-														LSTM, an attention layer, a dense layer and an output layer.
-		:param  X_train: (optional) train features for random search
-		        X_val: (optional) validation features for random search
-		        y_train: (optional) train labels for random search
-		        y_val: (optional) validation labels for random search
-		        params: optional hyerparameter container. A HyperParameters instance contains information about both the
-				search space and the current values of each hyperparameter.
-		"""
+        Building the network by defining its architecture: an input layer, two convolutional layers, a bidirectional
+                                                        LSTM, an attention layer, a dense layer and an output layer.
+        :param  X_train: (optional) train features for random search
+                X_val: (optional) validation features for random search
+                y_train: (optional) train labels for random search
+                y_val: (optional) validation labels for random search
+                params: optional hyerparameter container. A HyperParameters instance contains information about both the
+                search space and the current values of each hyperparameter.
+        """
+        if self.random_search:
+            self.drop_prob = params['drop_prob']
+            self.n_hid = params['n_hid']
+            self.lr = params['lr']
+            self.n_filt = params['n_filt']
 
         # Build model
         inputs = keras.Input(shape=(self.seq_len, self.n_feat))
         l_permute = layers.Permute((2, 1))(inputs)
 
+        l_conv_a = layers.Conv1D(self.n_filt, 3, strides=1, padding="same", activation="relu",
+                                 data_format='channels_first')(l_permute)
+        l_conv_b = layers.Conv1D(self.n_filt, 5, strides=1, padding="same", activation="relu",
+                                 data_format='channels_first')(l_permute)
+        l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
+
+        l_conv_final = layers.Conv1D(
+            self.n_filt * 2, 3, strides=1, padding="same", activation="relu", data_format='channels_first')(l_conc)
+
+        l_reshu = layers.Permute((2, 1))(l_conv_final)
+
+        # encoders LSTM
+        l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
+            (layers.LSTM(self.n_hid, dropout=self.drop_prob, return_sequences=True, return_state=True,
+                         activation="tanh"))(l_reshu)
+
+        state_h = layers.Concatenate()([forward_h, backward_h])
+        state_c = layers.Concatenate()([forward_c, backward_c])
+
+        # Set up the attention layer
+        context_vector, self.attention_weights = Attention(self.n_hid * 2)(inputs=l_lstm, hidden=state_h)
+
+        l_dense = layers.Dense(self.n_hid * 2, activation="relu")(context_vector)
+
+        l_drop = layers.Dropout(self.drop_prob)(l_dense)
+
+        l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_drop)
+        l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_drop)
+        self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
+        # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
+        self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
+                           optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
+
         if not self.random_search:
-            l_conv_a = layers.Conv1D(self.n_filt, 3, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-            l_conv_b = layers.Conv1D(self.n_filt, 5, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-            l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
-
-            l_conv_final = layers.Conv1D(
-                self.n_filt * 2, 3, strides=1, padding="same", activation="relu", data_format='channels_first')(l_conc)
-
-            l_reshu = layers.Permute((2, 1))(l_conv_final)
-
-            # encoders LSTM
-            l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
-                (layers.LSTM(self.n_hid, dropout=self.drop_prob, return_sequences=True, return_state=True,
-                             activation="tanh"))(l_reshu)
-
-            state_h = layers.Concatenate()([forward_h, backward_h])
-            state_c = layers.Concatenate()([forward_c, backward_c])
-
-            # Set up the attention layer
-            context_vector, self.attention_weights = Attention(self.n_hid * 2)(inputs=l_lstm, hidden=state_h)
-
-            l_dense = layers.Dense(self.n_hid * 2, activation="relu")(context_vector)
-
-            l_drop = layers.Dropout(self.drop_prob)(l_dense)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_drop)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_drop)
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=self.lr, clipnorm=3), metrics=['accuracy'])
-
             return self.model
         else:
-            l_conv_a = layers.Conv1D(params['n_filt'], 3, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-            l_conv_b = layers.Conv1D(params['n_filt'], 5, strides=1, padding="same", activation="relu",
-                                     data_format='channels_first')(
-                l_permute)
-            l_conc = tf.keras.layers.Concatenate(axis=1)([l_conv_a, l_conv_b])
-
-            l_conv_final = layers.Conv1D(
-                params['n_filt'] * 2, 3, strides=1, padding="same", activation="relu", data_format='channels_first')(l_conc)
-
-            l_reshu = layers.Permute((2, 1))(l_conv_final)
-
-            # encoders LSTM
-            l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
-                (layers.LSTM(params['n_hid'], dropout=params['drop_prob'], return_sequences=True, return_state=True,
-                             activation="tanh"))(l_reshu)
-            state_h = layers.Concatenate()([forward_h, backward_h])
-            state_c = layers.Concatenate()([forward_c, backward_c])
-
-            # Set up the attention layer
-            context_vector, self.attention_weights = Attention(params['n_hid'] * 2)(inputs=l_lstm, hidden=state_h)
-
-
-            l_dense = layers.Dense(params['n_hid'] * 2, activation="relu")(context_vector)
-
-            l_drop = layers.Dropout(params['drop_prob'])(l_dense)
-
-            l_out_subcellular = layers.Dense(self.n_class, activation="softmax", name="subcellular")(l_drop)
-            l_out_membrane = layers.Dense(self.n_membrane_class, activation="softmax", name="membrane")(l_drop)
-            self.model = keras.Model(inputs, [l_out_subcellular, l_out_membrane])
-            # with clipnorm the gradients will be clipped when their L2 norm exceeds this value.
-            self.model.compile(loss=['categorical_crossentropy', 'categorical_crossentropy'],
-                               optimizer=optimizers.Adam(learning_rate=params['lr'], clipnorm=3), metrics=['accuracy'])
-
             history = self.model.fit(X_train, [y_train[0], y_train[1]], epochs=120, batch_size=params['batch_size'],
                                      validation_data=(X_val, [y_val[0], y_val[1]]), shuffle=True)
             return history, self.model
 
     def create_CNN_LSTM_Attention_complete(self, hp=None):
         """
-		Building the network by defining its architecture: an input layer, two convolutional layers, a bidirectional
-														LSTM, an attention layer, a dense layer and an output layer.
-		:param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
-				search space and the current values of each hyperparameter.
-		"""
+        Building the network by defining its architecture: an input layer, two convolutional layers, a bidirectional
+                                                        LSTM, an attention layer, a dense layer and an output layer.
+        :param hp: optional hyerparameter container. A HyperParameters instance contains information about both the
+                search space and the current values of each hyperparameter.
+        """
 
         # Build model
         inputs = keras.Input(shape=(self.seq_len, self.n_feat))
@@ -538,7 +423,8 @@ class CustomModels:
         l_reshu = layers.Permute((2, 1))(l_conc)
 
         l_conv_final = layers.Conv1D(
-            filters=128, kernel_size=f_size_b, strides=1, padding="same", activation="relu", data_format='channels_first')(l_reshu)
+            filters=128, kernel_size=f_size_b, strides=1, padding="same", activation="relu",
+            data_format='channels_first')(l_reshu)
 
         # encoders LSTM
         l_lstm, forward_h, forward_c, backward_h, backward_c = layers.Bidirectional \
