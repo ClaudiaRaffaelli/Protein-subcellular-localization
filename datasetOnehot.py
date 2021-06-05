@@ -65,20 +65,20 @@ if sequence_len == 400:
 	y_train_membrane = []
 	X_val = []
 	X_train = []
-	out_train = "data/" + str(sequence_len) + "_train"
-	out_val = "data/" + str(sequence_len) + "_val"
+	out_train = "data/one-hot/" + str(sequence_len) + "_train"
+	out_val = "data/one-hot/" + str(sequence_len) + "_val"
 else:
 	y_train_val_location = []
 	y_train_val_membrane = []
 	X_train_val = []  # of the form (number of sequences x sequence_len x 20) where 20 is the number of amino acids
 	partition = []
-	out_train_val = "data/" + str(sequence_len) + "_train_val"
+	out_train_val = "data/one-hot/" + str(sequence_len) + "_train_val"
 
 X_test = []  # of the form (number of sequences x sequence_len x 20) where 20 is the number of amino acids
 y_test_location = []
 y_test_membrane = []
 
-out_test = "data/" + str(sequence_len) + "_test"
+out_test = "data/one-hot/" + str(sequence_len) + "_test"
 
 # needed to create k-fold validation on train_val with k=4
 part = 1
@@ -107,7 +107,8 @@ for fasta in fasta_sequences:
 		index_i = math.floor(len(sequence) / 2) - math.floor(extra / 2)
 		index_f = math.floor(len(sequence) / 2) + math.ceil(extra / 2)
 		extra = 0
-	# if the sequence is shorter than sequence_len is added padding at the center (all amino acids as zero and none as 1)
+	# if the sequence is shorter than sequence_len is added padding at the end of the sequence (all amino acids as zero
+	# and none as 1)
 	else:
 		index_i = index_f = math.floor(len(sequence) / 2)
 		extra = -extra
@@ -124,11 +125,6 @@ for fasta in fasta_sequences:
 			print("Unknown amino acid: {}, \n whole sequence: {}".format(amino_acid, sequence))
 		encoded_sequence.append(encoded_amino_acid)
 
-	for i in range(extra):
-		# padding of all amino acid encoded as zeros
-		encoded_amino_acid = np.zeros(20)
-		encoded_sequence.append(encoded_amino_acid)
-
 	for i in range(index_f, len(sequence)):
 		amino_acid = sequence[i]
 		encoded_amino_acid = np.zeros(20)
@@ -137,6 +133,12 @@ for fasta in fasta_sequences:
 		except:
 			# if the amino acid is non existing (unknown) we simply add a vector of zeros
 			print("Unknown amino acid: {}, \nWhole sequence: {}".format(amino_acid, sequence))
+		encoded_sequence.append(encoded_amino_acid)
+
+	# to reach 1000 or 400 amino acid per sequence is added padding if necessary
+	for i in range(extra):
+		# padding of all amino acid encoded as zeros
+		encoded_amino_acid = np.zeros(20)
 		encoded_sequence.append(encoded_amino_acid)
 
 	# this means that this record is for the test set.

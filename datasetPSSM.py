@@ -96,7 +96,7 @@ for pssm_file in pssm_files:
             index_i = math.floor(len(lines) / 2) - math.floor(extra / 2)
             index_f = math.floor(len(lines) / 2) + math.ceil(extra / 2)
             extra = 0
-        # if the sequence is shorter than sequence_len is added padding at the center
+        # if the sequence is shorter than sequence_len is added padding at the end of the sequence
         else:
             index_i = index_f = math.floor(len(lines) / 2)
             extra = -extra
@@ -109,17 +109,18 @@ for pssm_file in pssm_files:
             print(encoded_amino_acid)
             encoded_sequence.append(encoded_amino_acid)
 
-        for i in range(extra):
-            # padding of all amino acid encoded as zeros
-            encoded_amino_acid = np.zeros(20)
-            encoded_sequence.append(encoded_amino_acid)
-
         for i in range(index_f, len(lines)):
             splitted = lines[i].split()
 
             # taking only the values in the matrix and doing normalization between 0 and 1
             encoded_amino_acid = [float(value) / 100 for value in splitted[22:42]]
             print(encoded_amino_acid)
+            encoded_sequence.append(encoded_amino_acid)
+
+        # to reach 1000 or 400 amino acid per sequence is added padding if necessary
+        for i in range(extra):
+            # padding of all amino acid encoded as zeros
+            encoded_amino_acid = np.zeros(20)
             encoded_sequence.append(encoded_amino_acid)
 
         # this means that this record is for the test set.
