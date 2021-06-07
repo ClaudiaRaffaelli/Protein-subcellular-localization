@@ -19,7 +19,6 @@ class Attention(tf.keras.layers.Layer):
         # W2 weight for all the encoder hidden states
         self.W2 = tf.keras.layers.Dense(units)
         self.V = tf.keras.layers.Dense(1)
-        self.hidden_states = []
 
     def call(self, inputs, hidden):
         # 'hidden' (h_t) is expanded over the time axis to prepare it for the addition
@@ -27,7 +26,6 @@ class Attention(tf.keras.layers.Layer):
         # (in seq2seq in would have been the current state of the decoder step)
         # 'features' (h_s) are all the hidden states of the encoder.
         hidden_with_time_axis = tf.expand_dims(hidden, 1)
-        self.hidden_states.append(hidden_with_time_axis)
 
         # Bahdanau additive style to compute the score:
         # score = v_a * tanh(W_1*h_t + W_2*h_s)
@@ -67,6 +65,10 @@ class CustomModels:
         self.random_search = random_search
         self.n_membrane_class = n_membrane_class
         self.batch_size = batch_size
+
+        self.classes_subcellular = ['Cell membrane', 'Cytoplasm', 'ER', 'Golgi apparatus', 'Lysosome + Vacuole',
+                   'Mitochondrion', 'Nucleus', 'Peroxisome', 'Plastid', 'Extracellular']
+        self.classes_membrane = ['Membrane', 'Soluble', 'Unknown']
 
     def create_FFN(self, X_train=None, y_train=None, X_val=None, y_val=None, params=None):
         """
@@ -459,24 +461,29 @@ class CustomModels:
 
         return self.model
 
-    def confusion_matrix(self, X_val, validation):
-        # The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
-        Y_pred = self.model.predict(X_val)
-        y_pred = np.argmax(Y_pred, axis=1)
+    def prepare_metrics(self, history, X_val, validation, num_epochs):
+        self.history = history
+        self.X_val = X_val
+        self.validation = validation
+        self.num_epochs = num_epochs
 
-        self.confusion_mat = confusion_matrix(validation['y_val'], y_pred)
+    def confusion_matrix_location(self):
+        # The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
+        Y_pred = self.model.predict(self.X_val)
+        # taking prediction for subcellular location
+        y_pred = np.argmax(Y_pred[0], axis=1)
+
+        self.confusion_mat = confusion_matrix(self.validation['y_val_location'], y_pred)
 
         plt.figure(figsize=(8, 8))
         colormap = plt.cm.Blues
         plt.imshow(self.confusion_mat, interpolation='nearest', cmap=colormap)
-        plt.title('Confusion matrix validation set')
+        plt.title('Confusion matrix on subcellular location - validation set')
         plt.colorbar()
         tick_marks = np.arange(self.n_class)
-        classes = ['Nucleus', 'Cytoplasm', 'Extracellular', 'Mitochondrion', 'Cell membrane', 'ER', 'Chloroplast',
-                   'Golgi apparatus', 'Lysosome', 'Vacuole']
 
-        plt.xticks(tick_marks, classes, rotation=60)
-        plt.yticks(tick_marks, classes)
+        plt.xticks(tick_marks, self.classes_subcellular, rotation=60)
+        plt.yticks(tick_marks, self.classes_subcellular)
 
         thresh = self.confusion_mat.max() / 2.
         for i, j in itertools.product(range(self.confusion_mat.shape[0]), range(self.confusion_mat.shape[1])):
@@ -488,7 +495,58 @@ class CustomModels:
         plt.xlabel('Predicted location')
         plt.show()
 
-    def MCC(self, X_val, validation):
+    def confusion_matrix_membrane(self):
+        # The confusion matrix shows how well is predicted each class and which are the most common mis-classifications.
+        Y_pred = self.model.predict(self.X_val)
+        # taking the prediction for membrane
+        y_pred = np.argmax(Y_pred[1], axis=1)
+
+        self.confusion_mat = confusion_matrix(self.validation['y_val_membrane'], y_pred)
+
+        plt.figure(figsize=(8, 8))
+        colormap = plt.cm.Blues
+        plt.imshow(self.confusion_mat, interpolation='nearest', cmap=colormap)
+        plt.title('Confusion matrix on membrane - validation set')
+        plt.colorbar()
+        tick_marks = np.arange(3)
+
+        plt.xticks(tick_marks, self.classes_membrane, rotation=60)
+        plt.yticks(tick_marks, self.classes_membrane)
+
+        thresh = self.confusion_mat.max() / 2.
+        for i, j in itertools.product(range(self.confusion_mat.shape[0]), range(self.confusion_mat.shape[1])):
+            plt.text(j, i, self.confusion_mat[i, j], horizontalalignment="center",
+                     color="white" if self.confusion_mat[i, j] > thresh else "black")
+
+        plt.tight_layout()
+        plt.ylabel('True membrane')
+        plt.xlabel('Predicted membrane')
+        plt.show()
+
+    def attention_graph(self):
+        intermediate_layer_model = keras.Model(inputs=self.model.input,
+                                               outputs=self.model.layers[3].output)
+        intermediate_output = intermediate_layer_model(self.X_val)
+        alphas = np.array(intermediate_output[1])
+
+        y_val = self.validation['y_val_location']
+        sort_ind = np.argsort(y_val)
+        # alphas shape is of the form (#sequences, length sequence, 1), e.g. (635, 400, 1)
+        alphas_1 = np.array(alphas).reshape((alphas.shape[0], alphas.shape[1]))[sort_ind]
+        f, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 15))
+        labels_plot = ax1.imshow(y_val[sort_ind].reshape(alphas.shape[0], 1), cmap=plt.get_cmap('Set1'))
+        ax1.set_aspect(0.3)
+        ax1.set_axis_off()
+        cb = plt.colorbar(labels_plot)
+        labels = np.arange(0, 10, 1)
+        loc = labels + .5
+        cb.set_ticks(loc)
+        cb.set_ticklabels(self.classes_subcellular)
+        att_plot = ax2.imshow(alphas_1, aspect='auto')
+        ax2.yaxis.set_visible(True)
+        plt.tight_layout(pad=25, w_pad=0.5, h_pad=1.0)
+
+    def MCC(self):
         # The Matthews correlation coefficient is a measure of the quality of binary and multiclass (and in this case
         # it is called Gorodkin measure) classifications.
         # It takes into account true and false positives and negatives. Is as a balanced measure which can be used
@@ -497,7 +555,86 @@ class CustomModels:
         # A coefficient of +1 represents a perfect prediction, 0 an average random prediction and -1 an inverse
         # prediction.
 
-        Y_pred = self.model.predict(X_val)
-        y_pred = np.argmax(Y_pred, axis=1)
+        Y_pred = self.model.predict(self.X_val)
+        y_pred = np.argmax(Y_pred[1], axis=1)
 
-        return matthews_corrcoef(validation['y_val'], y_pred)
+        return matthews_corrcoef(self.validation['y_val_location'], y_pred)
+
+    def gorodkin(self):
+        # The Matthews correlation coefficient is a measure of the quality of binary and multiclass (and in this case
+        # it is called Gorodkin measure) classifications.
+        # It takes into account true and false positives and negatives. Is as a balanced measure which can be used
+        # even if the classes are of very different sizes.
+        # The MCC is in essence a correlation coefficient value between -1 and +1.
+        # A coefficient of +1 represents a perfect prediction, 0 an average random prediction and -1 an inverse
+        # prediction.
+
+        Y_pred = self.model.predict(self.X_val)
+        y_pred = np.argmax(Y_pred[0], axis=1)
+
+        return matthews_corrcoef(self.validation['y_val_membrane'], y_pred)
+
+    def accuracy_loss_plots_subcellular(self):
+        x_axis = range(self.num_epochs)
+        plt.figure(figsize=(8, 6))
+        # loss_training:
+        plt.plot(x_axis, self.history.history['subcellular_loss'])
+        # loss_validation
+        plt.plot(x_axis, self.history.history['val_subcellular_loss'])
+        plt.xlabel('Epoch')
+        plt.title("Loss on Subcellular localization")
+        plt.ylabel('Error')
+        plt.legend(('Training', 'Validation'))
+        plt.show()
+
+        # loss_training:
+        plt.plot(x_axis, self.history.history['subcellular_accuracy'])
+        # loss_validation
+        plt.plot(x_axis, self.history.history['val_subcellular_accuracy'])
+        plt.xlabel('Epoch')
+        plt.title("Accuracy on Subcellular localization")
+        plt.ylabel('Accuracy')
+        plt.legend(('Training', 'Validation'))
+        plt.show()
+
+    def accuracy_loss_plots_membrane(self):
+        x_axis = range(self.num_epochs)
+        plt.figure(figsize=(8, 6))
+
+        # loss_training:
+        plt.plot(x_axis, self.history.history['membrane_loss'])
+        # loss_validation
+        plt.plot(x_axis, self.history.history['val_membrane_loss'])
+        plt.xlabel('Epoch')
+        plt.title("Loss on membrane")
+        plt.ylabel('Error')
+        plt.legend(('Training', 'Validation'))
+        plt.show()
+
+        # loss_training:
+        plt.plot(x_axis, self.history.history['membrane_accuracy'])
+        # loss_validation
+        plt.plot(x_axis, self.history.history['val_membrane_accuracy'])
+        plt.xlabel('Epoch')
+        plt.title("Accuracy on membrane")
+        plt.ylabel('Accuracy')
+        plt.legend(('Training', 'Validation'))
+        plt.show()
+
+    def print_measures(self, net_name):
+        acc_index = np.argmin(self.history.history['val_loss'])
+        global_loss_min = self.history.history['val_loss'][acc_index]
+        loss_subcellular = self.history.history['val_subcellular_loss'][acc_index]
+        loss_membrane = self.history.history['val_membrane_loss'][acc_index]
+        subcellular_accuracy = self.history.history['val_subcellular_accuracy'][acc_index]
+        membrane_accuracy = self.history.history['val_membrane_accuracy'][acc_index]
+
+        print("Best values for Network {}".format(net_name))
+        print("-------------------------------------")
+        print("Minimum global loss: {:.6f}".format(global_loss_min))
+        print("With validation loss (subcellular localization): {:.6f}".format(loss_subcellular))
+        print("With validation loss (membrane): {:.6f}".format(loss_membrane))
+        print("With accuracy (subcellular localization): {:.6f}".format(subcellular_accuracy))
+        print("With accuracy (membrane): {:.6f}".format(membrane_accuracy))
+        print("Gorodkin measure on validation (subcellular localization): {}".format(self.gorodkin()))
+        print("MCC measure on validation (membrane): {}".format(self.MCC()))
