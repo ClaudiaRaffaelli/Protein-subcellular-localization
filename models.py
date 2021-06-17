@@ -558,7 +558,7 @@ class CustomModels:
         Y_pred = self.model.predict(self.X_val)
         y_pred = np.argmax(Y_pred[1], axis=1)
 
-        return matthews_corrcoef(self.validation['y_val_location'], y_pred)
+        return matthews_corrcoef(self.validation['y_val_membrane'], y_pred)
 
     def gorodkin(self):
         # The Matthews correlation coefficient is a measure of the quality of binary and multiclass (and in this case
@@ -572,7 +572,7 @@ class CustomModels:
         Y_pred = self.model.predict(self.X_val)
         y_pred = np.argmax(Y_pred[0], axis=1)
 
-        return matthews_corrcoef(self.validation['y_val_membrane'], y_pred)
+        return matthews_corrcoef(self.validation['y_val_location'], y_pred)
 
     def accuracy_loss_plots_subcellular(self):
         x_axis = range(self.num_epochs)
@@ -587,9 +587,10 @@ class CustomModels:
         plt.legend(('Training', 'Validation'))
         plt.show()
 
-        # loss_training:
+        plt.figure(figsize=(8, 6))
+        # accuracy_training:
         plt.plot(x_axis, self.history.history['subcellular_accuracy'])
-        # loss_validation
+        # accuracy_validation
         plt.plot(x_axis, self.history.history['val_subcellular_accuracy'])
         plt.xlabel('Epoch')
         plt.title("Accuracy on Subcellular localization")
@@ -611,9 +612,10 @@ class CustomModels:
         plt.legend(('Training', 'Validation'))
         plt.show()
 
-        # loss_training:
+        plt.figure(figsize=(8, 6))
+        # accuracy_training:
         plt.plot(x_axis, self.history.history['membrane_accuracy'])
-        # loss_validation
+        # accuracy_validation
         plt.plot(x_axis, self.history.history['val_membrane_accuracy'])
         plt.xlabel('Epoch')
         plt.title("Accuracy on membrane")
