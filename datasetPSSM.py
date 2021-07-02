@@ -106,8 +106,8 @@ for pssm_file in pssm_files:
 
             # taking only the values in the matrix and doing normalization between 0 and 1
             # splitted[22:42] for right matrix and [2:22] for left matrix
-            encoded_amino_acid = [float(value) / 100 for value in splitted[2:22]]
-            print(splitted[2:22])
+            encoded_amino_acid = [float(value) / 100 for value in splitted[22:42]]
+            #print(splitted[2:22])
             #print(encoded_amino_acid)
             encoded_sequence.append(encoded_amino_acid)
 
@@ -115,9 +115,9 @@ for pssm_file in pssm_files:
             splitted = lines[i].split()
 
             # taking only the values in the matrix and doing normalization between 0 and 1
-            encoded_amino_acid = [float(value) / 100 for value in splitted[2:22]]
+            encoded_amino_acid = [float(value) / 100 for value in splitted[22:42]]
             #print(encoded_amino_acid)
-            print(splitted[2:22])
+            #print(splitted[2:22])
             encoded_sequence.append(encoded_amino_acid)
 
         # to reach 1000 or 400 amino acid per sequence is added padding if necessary
