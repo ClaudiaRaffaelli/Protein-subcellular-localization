@@ -8,7 +8,7 @@ while (sequence_len != 400) and (sequence_len != 1000):
 	sequence_len = int(input("Choose between length 1000 or 400: "))
 print("Your choice of sequence length: {}".format(sequence_len))
 
-input_dataset = "data/DeepLoc.rtf"
+input_dataset = "dataset/DeepLoc/DeepLoc.rtf"
 
 fasta_sequences = SeqIO.parse(open(input_dataset), 'fasta')
 
@@ -65,20 +65,20 @@ if sequence_len == 400:
 	y_train_membrane = []
 	X_val = []
 	X_train = []
-	out_train = "data/one-hot/" + str(sequence_len) + "_train"
-	out_val = "data/one-hot/" + str(sequence_len) + "_val"
+	out_train = "dataset/one-hot/" + str(sequence_len) + "_train"
+	out_val = "dataset/one-hot/" + str(sequence_len) + "_val"
 else:
 	y_train_val_location = []
 	y_train_val_membrane = []
 	X_train_val = []  # of the form (number of sequences x sequence_len x 20) where 20 is the number of amino acids
 	partition = []
-	out_train_val = "data/one-hot/" + str(sequence_len) + "_train_val"
+	out_train_val = "dataset/one-hot/" + str(sequence_len) + "_train_val"
 
 X_test = []  # of the form (number of sequences x sequence_len x 20) where 20 is the number of amino acids
 y_test_location = []
 y_test_membrane = []
 
-out_test = "data/one-hot/" + str(sequence_len) + "_test"
+out_test = "dataset/one-hot/" + str(sequence_len) + "_test"
 
 # needed to create k-fold validation on train_val with k=4
 part = 1

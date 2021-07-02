@@ -37,28 +37,28 @@ if sequence_len == 400:
     y_train_membrane = []
     X_val = []
     X_train = []
-    out_train = "data/PSSM/results/" + str(sequence_len) + "_train"
-    out_val = "data/PSSM/results/" + str(sequence_len) + "_val"
+    out_train = "dataset/psi-blast/results/" + str(sequence_len) + "_train"
+    out_val = "dataset/psi-blast/results/" + str(sequence_len) + "_val"
 else:
     y_train_val_location = []
     y_train_val_membrane = []
     X_train_val = []  # of the form (number of sequences x sequence_len x 20) where 20 is the number of amino acids
     partition = []
-    out_train_val = "data/PSSM/results/" + str(sequence_len) + "_train_val"
+    out_train_val = "dataset/psi-blast/results/" + str(sequence_len) + "_train_val"
 
 X_test = []  # of the form (number of sequences x sequence_len x 20) where 20 is the number of amino acids
 y_test_location = []
 y_test_membrane = []
 
-out_test = "data/PSSM/results/" + str(sequence_len) + "_test"
+out_test = "dataset/psi-blast/results/" + str(sequence_len) + "_test"
 
 # needed to create k-fold validation on train_val with k=4
 part = 1
 # in this case train and val are saved separated and are considered less sequences
 if sequence_len == 400:
-    pssm_files = sample(glob.glob("data/PSSM/txt/*"), 3800)
+    pssm_files = sample(glob.glob("dataset/DeepLoc/psi-blast/pssm/*"), 3800)
 else:
-    pssm_files = glob.glob("data/PSSM/txt/*")
+    pssm_files = glob.glob("dataset/DeepLoc/psi-blast/pssm/*")
 
 for pssm_file in pssm_files:
 
@@ -85,7 +85,7 @@ for pssm_file in pssm_files:
         membrane = labels_dic_membrane[loc[5][0]]  # M for membrane, U for unknown, S for soluble
     # print("location: {}, membrane: {}".format(location, membrane))
 
-    # parsing the whole txt file of PSSM
+    # parsing the whole pssm file of psi-blast
     with open(pssm_file) as f:
         # skipping the first three lines and last six that are not part of the matrix
         lines = f.readlines()[3:-6]
@@ -105,16 +105,19 @@ for pssm_file in pssm_files:
             splitted = lines[i].split()
 
             # taking only the values in the matrix and doing normalization between 0 and 1
-            encoded_amino_acid = [float(value) / 100 for value in splitted[22:42]]
-            print(encoded_amino_acid)
+            # splitted[22:42] for right matrix and [2:22] for left matrix
+            encoded_amino_acid = [float(value) / 100 for value in splitted[2:22]]
+            print(splitted[2:22])
+            #print(encoded_amino_acid)
             encoded_sequence.append(encoded_amino_acid)
 
         for i in range(index_f, len(lines)):
             splitted = lines[i].split()
 
             # taking only the values in the matrix and doing normalization between 0 and 1
-            encoded_amino_acid = [float(value) / 100 for value in splitted[22:42]]
-            print(encoded_amino_acid)
+            encoded_amino_acid = [float(value) / 100 for value in splitted[2:22]]
+            #print(encoded_amino_acid)
+            print(splitted[2:22])
             encoded_sequence.append(encoded_amino_acid)
 
         # to reach 1000 or 400 amino acid per sequence is added padding if necessary

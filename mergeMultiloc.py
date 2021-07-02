@@ -23,7 +23,7 @@ part = 1
 sequences_list = []
 
 # running through all fasta files in order to merge them into one
-for file in glob.glob("data/multiloc/original/*.fasta"):
+for file in glob.glob("dataset/DeepLoc/multiloc/original/*.fasta"):
 	fasta_sequences = SeqIO.parse(file, 'fasta')
 	for sequence in fasta_sequences:
 		description, seq = sequence.description, str(sequence.seq)
@@ -40,5 +40,5 @@ for file in glob.glob("data/multiloc/original/*.fasta"):
 		part += 1
 
 
-with open("data/multiloc/multiloc.fasta", "w") as output_handle:
+with open("dataset/DeepLoc/multiloc/merged_multiloc.fasta", "w") as output_handle:
 	SeqIO.write(sequences_list, output_handle, "fasta")
