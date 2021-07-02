@@ -40,5 +40,5 @@ for file in glob.glob("dataset/DeepLoc/multiloc/original/*.fasta"):
 		part += 1
 
 
-with open("dataset/DeepLoc/multiloc/merged_multiloc.fasta", "w") as output_handle:
+with open("../dataset/DeepLoc/multiloc/merged_multiloc.fasta", "w") as output_handle:
 	SeqIO.write(sequences_list, output_handle, "fasta")
