@@ -5,11 +5,17 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 # Hyperparameters
-n = 3
-stride = 3
+n = 3   # length of n-grams
+stride = 3  # Stride used to create the n-grams from protein sequences
 
 
 def createVocabulary():
+    """
+    Create the vocabulary which will be used for the training.
+    Needs swissprot.fasta and deeploc_data.fatsa files in the data/ directory
+    This file will be created according to the value of n and stride
+    :return:
+    """
     dataset_swiss = "data/swissProt.fasta"
     dataset_deeploc = "data/deeploc_data.fasta"
 
@@ -41,6 +47,12 @@ def createVocabulary():
 
 
 def createTrainingDataset():
+    """
+    Create the training set and heldout set which will be used for the training adn evaluation of Elmo.
+    Needs swissprot.fasta file in the data/ directory.
+    These files will be created according to the value of n and stride
+    :return:
+    """
     dataset = "data/swissProt.fasta"
 
     with open(dataset, "r") as f:
