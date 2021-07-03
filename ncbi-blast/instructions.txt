@@ -1,0 +1,5 @@
+1. Plese follow these steps to install ncbi-blast in this Directory: https://www.ncbi.nlm.nih.gov/books/NBK52640/
+2. Install the Swissprot dataset in the blastdb/ directory
+3. Save your dataset in the query folder, you can split it in different slices and rename them in increasing numerical order.
+4. Run "getPSSM.py --slice [# of slice]"
+5. Results will be saved in results/ folder
