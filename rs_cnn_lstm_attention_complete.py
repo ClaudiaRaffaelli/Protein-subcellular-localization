@@ -1,8 +1,5 @@
 import tensorflow as tf
-from tensorflow.keras import layers, optimizers
-from tensorflow import keras
 from tensorflow.keras.utils import to_categorical
-
 import numpy as np
 import talos
 import os
