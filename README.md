@@ -45,7 +45,7 @@ CNN LSTM Attention model has proven to be the best performing model and for this
 The architecture of this complete network is shown in the figure below. 
 
 <p float="left" align="center">
-  <img src="model.png" width="65%"  />
+  <img src="model.png" width="40%"  />
 </p>
 
 The training was done with 4fold-validation on 200 epochs. For each fold the best hyperparameters have been found using both random search and **bayesian optimization**. The datasets were configured in the following way:
@@ -54,7 +54,7 @@ The training was done with 4fold-validation on 200 epochs. For each fold the bes
 
 Alongside the two softmax outputs (the one for membrane-soluble and subcellular localization) is added a third one: a hierarchical tree of sorting pathways, which is an alternative method to softmax for subcellular localization. It is composed of a dense layer with 9 nodes, in the next figure the white nodes carry the sigmoid activation function, used to make decisions. These decisions are based on the conditional probability of going through each of these nodes. The 10 black nodes represent the output classes. The results are equivalent to the plain softmax that was preferred later. 
 <p float="left" align="center">
-  <img src="tree.png" width="50%"  />
+  <img src="tree.png" width="40%"  />
 </p>
 
 #### Generalization test
@@ -69,12 +69,16 @@ The experiment involved the training upon different combinations of n-grams leng
 The respository is structured as follows:
 - The ```dataset/``` folder contains all the datasets used during the course of experiments. All the datasets are in ```.npz``` format, ready to use. 
 - The ELMo datasets in ```dataset/ELMo/``` are in folders named as ```embeddings_x_y``` where ```x``` is the n-grams lenght and ```y``` the stride. 
-- The file ```models.py``` contains all the models used during the models comparison experiment as well as the complete network. It also contains a few functions to plot some evaluation graphs.
+- The file ```utils/models.py``` contains all the models used during the models comparison experiment as well as the complete network. It also contains a few functions to plot some evaluation graphs.
 - The file ```utils/mergeMultiloc.py``` is a simple script used to merge the Multiloc ```.fasta``` files downloaded that were splitted by class.
-- The file ```utils/ncbi-blast/getPSSM.py``` computes the pssm matrices for psi-blast profiles given a dataset of protein sequences. 
+- The file ```utils/elmo/ncbi-blast/getPSSM.py``` computes the pssm matrices for psi-blast profiles given a dataset of protein sequences. 
 - The files ```utils/datasetOnehot.py``` and ```utils/datasetPSSM.py``` create either one-hot or psi-blast ```.npz``` datasets. In the latter case the script goes through all the pssm matrices to do so. 
-- The notebook ```random_search_results.ipynb``` holds all the results of the network comparisons optimized with random search.
-- The script ```rs_cnn_lstm_attention_complete.py``` performs random search on the complete network.
+- The notebook ```trainings/notebooks/random_search_results.ipynb``` holds all the results of the network comparisons optimized with random search.
+- The script ```trainings/rs_cnn_lstm_attention_complete.py``` performs random search on the complete network.
+- The file ```utils/elmo/elmo_dataset.py``` creates a vocabulary from DeepLoc and SwissProt. It also creates the training and heldout set to pre-train with ELMo.
+-  ```trainings/elmo_train.py``` prepares the options file where the configuration parameters of ELMo are. Takes the vocabulary and training set and starts the training either using checkpoints (like the ones from UniRef50, or not). 
+-  The file ```utils/elmo/elmo_embeddings.py``` takes the proteins from DeepLoc and extracts the 1024 long embeddings. It saves them  as ```.npz``` files.
+- ```trainings/notebooks/Elmo.ipynb``` sums up the configuration, pre-train and train of ELMo with also the instruction given by command line. 
 
 ## Bibliography
 \[1\] Almagro Armenteros JJ, Sønderby CK, Sønderby SK, Nielsen H, Winther O. DeepLoc: prediction of protein subcellular localization using deep learning. Bioinformatics. 2017 Nov 1;33(21):3387-3395. doi: [10.1093/bioinformatics/btx431](https://doi.org/10.1093/bioinformatics/btx431). Erratum in: Bioinformatics. 2017 Sep 19;: PMID: 29036616.
