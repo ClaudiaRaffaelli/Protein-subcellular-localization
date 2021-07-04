@@ -45,7 +45,7 @@ CNN LSTM Attention model has proven to be the best performing model and for this
 The architecture of this complete network is shown in the figure below. 
 
 <p float="left" align="center">
-  <img src="model.png" width="40%"  />
+  <img src="imgs/model.png" width="40%"  />
 </p>
 
 The training was done with 4fold-validation on 200 epochs. For each fold the best hyperparameters have been found using both random search and **bayesian optimization**. The datasets were configured in the following way:
@@ -54,7 +54,7 @@ The training was done with 4fold-validation on 200 epochs. For each fold the bes
 
 Alongside the two softmax outputs (the one for membrane-soluble and subcellular localization) is added a third one: a hierarchical tree of sorting pathways, which is an alternative method to softmax for subcellular localization. It is composed of a dense layer with 9 nodes, in the next figure the white nodes carry the sigmoid activation function, used to make decisions. These decisions are based on the conditional probability of going through each of these nodes. The 10 black nodes represent the output classes. The results are equivalent to the plain softmax that was preferred later. 
 <p float="left" align="center">
-  <img src="tree.png" width="40%"  />
+  <img src="imgs/tree.png" width="40%"  />
 </p>
 
 #### Generalization test
