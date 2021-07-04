@@ -3,7 +3,7 @@ from tensorflow.keras.utils import to_categorical
 import numpy as np
 import talos
 import os
-from models import CustomModels, Attention
+from utils.models import CustomModels
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
